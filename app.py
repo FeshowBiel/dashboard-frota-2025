@@ -38,6 +38,25 @@ st.markdown(f"""
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
             margin-bottom: 20px;
         }}
+        
+        /* Estilização Customizada para Alertas com Texto Preto */
+        .alert-success {{
+            background-color: #dcfce7;
+            padding: 1rem;
+            border-radius: 8px;
+            border-left: 5px solid #22c55e;
+            color: black !important;
+            margin-bottom: 1rem;
+        }}
+        .alert-error {{
+            background-color: #fee2e2;
+            padding: 1rem;
+            border-radius: 8px;
+            border-left: 5px solid #ef4444;
+            color: black !important;
+            margin-bottom: 1rem;
+        }}
+
         div[data-testid="stMetric"] {{
             background-color: #ffffff !important;
             border: 1px solid #e2e8f0;
@@ -59,8 +78,22 @@ def carregar_dados_sql():
         conn = sqlite3.connect('manutencao.db')
         df = pd.read_sql("SELECT mes, gasto_real, km_rodado FROM custos_frota", conn)
         conn.close()
-        ordem = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
-        df['mes'] = pd.Categorical(df['mes'], categories=ordem, ordered=True)
+        
+        # Mapeamento de Meses para Nomes Completos
+        mapa_meses = {
+            'Jan': 'Janeiro', 'Fev': 'Fevereiro', 'Mar': 'Março', 'Abr': 'Abril',
+            'Mai': 'Maio', 'Jun': 'Junho', 'Jul': 'Julho', 'Ago': 'Agosto',
+            'Set': 'Setembro', 'Out': 'Outubro', 'Nov': 'Novembro', 'Dez': 'Dezembro'
+        }
+        
+        # Converte se os dados estiverem abreviados
+        if df['mes'].iloc[0] in mapa_meses:
+            df['mes'] = df['mes'].map(mapa_meses)
+            
+        ordem_completa = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 
+                         'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro']
+        
+        df['mes'] = pd.Categorical(df['mes'], categories=ordem_completa, ordered=True)
         df = df.sort_values('mes').rename(columns={'mes': 'Mês', 'gasto_real': 'Gasto', 'km_rodado': 'KM'})
         df['Custo/KM'] = df['Gasto'] / df['KM']
         return df
@@ -103,14 +136,12 @@ if not df_base.empty:
     # --- 5. Interface Principal ---
     aba1, aba2 = st.tabs(["📊 Visão Geral", "🧠 Diagnóstico de Performance"])
 
-    # ABA 1: Visão Geral
     with aba1:
         st.markdown(f"<h2 style='color:{COR_SECUNDARIA}; margin-top:0;'>Dashboard Estratégico</h2>", unsafe_allow_html=True)
         
         if df_filtrado.empty:
             st.warning("Nenhum dado encontrado para os filtros selecionados.")
         else:
-            # NOVO FILTRO DE FOCO (Igual ao diagnóstico)
             mes_foco = st.selectbox("Selecione o Mês para Foco nos Indicadores:", df_filtrado['Mês'].unique(), key="foco_geral")
             dados_foco = df_filtrado[df_filtrado['Mês'] == mes_foco].iloc[0]
             
@@ -125,13 +156,13 @@ if not df_base.empty:
             col_esq, col_dir = st.columns(2)
             with col_esq:
                 st.markdown('<div class="chart-container"><b style="color:#1e293b">Evolução de Custos (R$)</b>', unsafe_allow_html=True)
-                chart_area = alt.Chart(df_filtrado).mark_area(line={'color':COR_PRIMARIA}, color=alt.Gradient(gradient='linear', stops=[alt.GradientStop(color=COR_PRIMARIA, offset=0), alt.GradientStop(color='white', offset=1)], x1=1, x2=1, y1=1, y2=0), interpolate='monotone').encode(x=alt.X('Mês', title=None), y=alt.Y('Gasto', title=None, axis=alt.Axis(format=',.0f', grid=True, labelPadding=10))).properties(height=300)
+                chart_area = alt.Chart(df_filtrado).mark_area(line={'color':COR_PRIMARIA}, color=alt.Gradient(gradient='linear', stops=[alt.GradientStop(color=COR_PRIMARIA, offset=0), alt.GradientStop(color='white', offset=1)], x1=1, x2=1, y1=1, y2=0), interpolate='monotone').encode(x=alt.X('Mês', title=None, axis=alt.Axis(labelAngle=-45)), y=alt.Y('Gasto', title=None, axis=alt.Axis(format=',.0f', grid=True, labelPadding=10))).properties(height=300)
                 st.altair_chart(chart_area, use_container_width=True)
                 st.markdown('</div>', unsafe_allow_html=True)
             
             with col_dir:
                 st.markdown('<div class="chart-container"><b style="color:#1e293b">Volume de Quilometragem</b>', unsafe_allow_html=True)
-                chart_bar = alt.Chart(df_filtrado).mark_bar(color=COR_PRIMARIA, cornerRadiusTopLeft=6, cornerRadiusTopRight=6, size=35).encode(x=alt.X('Mês', title=None), y=alt.Y('KM', title=None, axis=alt.Axis(format=',.0f', grid=True, labelPadding=10))).properties(height=300)
+                chart_bar = alt.Chart(df_filtrado).mark_bar(color=COR_PRIMARIA, cornerRadiusTopLeft=6, cornerRadiusTopRight=6, size=35).encode(x=alt.X('Mês', title=None, axis=alt.Axis(labelAngle=-45)), y=alt.Y('KM', title=None, axis=alt.Axis(format=',.0f', grid=True, labelPadding=10))).properties(height=300)
                 st.altair_chart(chart_bar, use_container_width=True)
                 st.markdown('</div>', unsafe_allow_html=True)
 
@@ -142,7 +173,6 @@ if not df_base.empty:
             })
             st.markdown('</div>', unsafe_allow_html=True)
 
-    # ABA 2: Diagnóstico
     with aba2:
         st.markdown(f"<h2 style='color:{COR_SECUNDARIA}; margin-top:0;'>Análise de Desvio e Controle</h2>", unsafe_allow_html=True)
         mes_diagnostico = st.selectbox("Escolha o mês para auditoria:", df_base['Mês'].unique(), key="foco_diag")
@@ -158,9 +188,8 @@ if not df_base.empty:
         diag3.metric("Status Operacional", status)
 
         st.markdown('<div class="chart-container">', unsafe_allow_html=True)
-        st.markdown(f"<b>Comparativo Mensal vs Linha de Meta (R$)</b>", unsafe_allow_html=True)
         diag_chart = alt.Chart(df_base).mark_bar().encode(
-            x=alt.X('Mês', title=None),
+            x=alt.X('Mês', title=None, axis=alt.Axis(labelAngle=-45)),
             y=alt.Y('Gasto', title=None),
             color=alt.condition(alt.datum.Mês == mes_diagnostico, alt.value(COR_PRIMARIA), alt.value('#e2e8f0')),
             tooltip=['Mês', alt.Tooltip('Gasto', format='$,.2f')]
@@ -170,10 +199,19 @@ if not df_base.empty:
         st.altair_chart(diag_chart + linha_ref, use_container_width=True)
         st.markdown('</div>', unsafe_allow_html=True)
         
+        # Mensagens de Diagnóstico com Escrita Preta
         if desvio > 10:
-            st.error(f"O mês de {mes_diagnostico} superou a meta de controle. Recomenda-se auditoria nas despesas.")
+            st.markdown(f"""
+                <div class="alert-error">
+                    🚨 O mês de <b>{mes_diagnostico}</b> superou a meta de controle. Recomenda-se auditoria nas despesas.
+                </div>
+            """, unsafe_allow_html=True)
         else:
-            st.success(f"Excelente! {mes_diagnostico} operou dentro ou abaixo da meta estabelecida.")
+            st.markdown(f"""
+                <div class="alert-success">
+                    ✅ <b>Excelente!</b> {mes_diagnostico} operou dentro ou abaixo da meta estabelecida.
+                </div>
+            """, unsafe_allow_html=True)
 
 else:
     st.info("Aguardando dados...")
