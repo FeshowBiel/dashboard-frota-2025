@@ -134,7 +134,7 @@ if not df_base.empty:
     df_filtrado = df_base[mask]
 
     # --- 5. Interface Principal ---
-    aba1, aba2 = st.tabs(["📊 Visão Geral", "🧠 Diagnóstico de Performance"])
+    aba1, aba2 = st.tabs(["Visão Geral", "Diagnóstico de Performance"])
 
     with aba1:
         st.markdown(f"<h2 style='color:{COR_SECUNDARIA}; margin-top:0;'>Dashboard Estratégico</h2>", unsafe_allow_html=True)
