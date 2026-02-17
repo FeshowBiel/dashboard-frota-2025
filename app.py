@@ -3,21 +3,32 @@ import pandas as pd
 import sqlite3
 import altair as alt
 
-# --- 1. Configuração de Identidade Visual ---
-COR_PRIMARIA = "#10b981"  # Verde (Sucesso)
-COR_SECUNDARIA = "#1e293b" # Azul Marinho (Sobriedade)
-COR_ALERTA = "#ef4444"    # Vermelho (Atenção)
+# --- 1. Configuração da Página e Identidade Visual ---
+COR_PRIMARIA = "#10b981"  # Verde
+COR_SECUNDARIA = "#1e293b" # Azul Marinho
+COR_TEXTO = "#334155"
 
-st.set_page_config(page_title="BI Inteligente | Gestão de Frota", page_icon="🧠", layout="wide")
+st.set_page_config(page_title="Frota BI | Pro", page_icon="🚛", layout="wide")
 
-# CSS para Layout de Software e Estilização de Alertas
+# CSS para unificar o visual das Abas e Cards
 st.markdown(f"""
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
         html, body, [class*="css"] {{ font-family: 'Inter', sans-serif; }}
         .stApp {{ background-color: #f8fafc; }}
-        [data-testid="stSidebar"] {{ background-color: {COR_SECUNDARIA}; }}
-        [data-testid="stSidebar"] * {{ color: #e2e8f0 !important; }}
+        
+        /* Estilização das Abas */
+        .stTabs [data-baseweb="tab-list"] {{ gap: 24px; }}
+        .stTabs [data-baseweb="tab"] {{
+            height: 50px;
+            white-space: pre-wrap;
+            background-color: #ffffff;
+            border-radius: 8px 8px 0px 0px;
+            gap: 1px;
+            padding-top: 10px;
+        }}
+        .stTabs [aria-selected="true"] {{ background-color: #f1f5f9; border-bottom: 3px solid {COR_PRIMARIA} !important; }}
+
         .chart-container {{
             background-color: #ffffff;
             padding: 25px;
@@ -26,18 +37,22 @@ st.markdown(f"""
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
             margin-bottom: 20px;
         }}
-        .main-header {{
-            background: linear-gradient(90deg, {COR_SECUNDARIA} 0%, {COR_PRIMARIA} 100%);
-            padding: 2rem;
-            border-radius: 12px;
-            color: white;
-            margin-bottom: 2rem;
+
+        div[data-testid="stMetric"] {{
+            background-color: #ffffff !important;
+            border: 1px solid #e2e8f0;
+            padding: 1.5rem;
+            border-radius: 10px;
+            text-align: center;
         }}
+        [data-testid="stMetricLabel"] p {{ color: #64748b !important; font-weight: 600 !important; }}
+        [data-testid="stMetricValue"] div {{ color: {COR_SECUNDARIA} !important; font-weight: 800 !important; }}
+
         #MainMenu, footer, header {{ visibility: hidden; }}
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. Processamento de Dados Inteligente ---
+# --- 2. Funções de Dados ---
 @st.cache_data
 def carregar_dados_sql():
     try:
@@ -47,95 +62,90 @@ def carregar_dados_sql():
         ordem = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
         df['mes'] = pd.Categorical(df['mes'], categories=ordem, ordered=True)
         df = df.sort_values('mes').rename(columns={'mes': 'Mês', 'gasto_real': 'Gasto', 'km_rodado': 'KM'})
+        df['Custo/KM'] = df['Gasto'] / df['KM']
         return df
     except Exception as e:
-        st.error(f"Erro ao acessar dados: {e}")
+        st.error(f"Erro: {e}")
         return pd.DataFrame()
 
 df_base = carregar_dados_sql()
 
-# --- 3. Filtros e Inteligência ---
+# --- 3. Sidebar Compartilhada ---
 with st.sidebar:
-    st.markdown("### 📊 Inteligência Analítica")
-    mes_analise = st.selectbox("Selecione o Mês para Diagnóstico:", df_base['Mês'].unique())
+    st.markdown("### 🔍 Central de Controle")
     st.divider()
-    st.caption("Gabriel Barbosa | Analista Administrativo") #
+    if not df_base.empty:
+        meses_selecionados = st.multiselect("Filtrar Período:", df_base['Mês'].unique(), default=df_base['Mês'].unique())
+    st.caption("Gabriel Barbosa | Analista Administrativo")
 
+# --- 4. Interface com ABAS (O segredo para organizar o Dashboard) ---
 if not df_base.empty:
-    # CÁLCULOS DE INTELIGÊNCIA
-    media_gasto_anual = df_base['Gasto'].mean()
-    media_km_anual = df_base['KM'].mean()
+    df_filtrado = df_base[df_base['Mês'].isin(meses_selecionados)]
     
-    # Dados do mês selecionado
-    dados_mes = df_base[df_base['Mês'] == mes_analise].iloc[0]
-    gasto_mes = dados_mes['Gasto']
-    km_mes = dados_mes['KM']
-    
-    # Cálculo de Desvio (A inteligência do Dashboard)
-    desvio_gasto = ((gasto_mes - media_gasto_anual) / media_gasto_anual) * 100
+    # Criando as abas
+    aba1, aba2 = st.tabs(["📊 Visão Geral da Frota", "🧠 Diagnóstico de Performance"])
 
-    # --- 4. Interface ---
-    st.markdown(f"""
-        <div class="main-header">
-            <h1 style='margin:0;'>Diagnóstico de Performance: {mes_analise}</h1>
-            <p style='margin:0; opacity:0.8;'>Comparativo automático contra a média anual de 2025</p>
-        </div>
-    """, unsafe_allow_html=True)
+    # --- ABA 1: VISÃO GERAL (O Dashboard que tínhamos antes) ---
+    with aba1:
+        st.markdown(f"<h2 style='color:{COR_SECUNDARIA}'>Painel de Custos e Rodagem</h2>", unsafe_allow_html=True)
+        
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Gasto Total", f"R$ {df_filtrado['Gasto'].sum():,.2f}")
+        c2.metric("Média Mensal", f"R$ {df_filtrado['Gasto'].mean():,.2f}")
+        c3.metric("KM Rodados", f"{df_filtrado['KM'].sum():,}".replace(',', '.'))
+        c4.metric("Custo/KM Médio", f"R$ {df_filtrado['Custo/KM'].mean():.3f}")
 
-    # Métricas com Deltas Inteligentes
-    c1, c2, c3 = st.columns(3)
-    
-    c1.metric(
-        label="Gasto no Mês", 
-        value=f"R$ {gasto_mes:,.2f}", 
-        delta=f"{desvio_gasto:.1f}% vs média", 
-        delta_color="inverse" # Vermelho se subir, verde se descer
-    )
-    
-    c2.metric(
-        label="Média Anual de Referência", 
-        value=f"R$ {media_gasto_anual:,.2f}"
-    )
-    
-    status = "ACIMA DA MÉDIA" if desvio_gasto > 0 else "DENTRO DA META"
-    c3.metric(label="Status Operacional", value=status)
+        col_esq, col_dir = st.columns(2)
+        with col_esq:
+            st.markdown('<div class="chart-container"><b>Evolução de Custos (R$)</b>', unsafe_allow_html=True)
+            chart_area = alt.Chart(df_filtrado).mark_area(line={'color':COR_PRIMARIA}, color=alt.Gradient(gradient='linear', stops=[alt.GradientStop(color=COR_PRIMARIA, offset=0), alt.GradientStop(color='white', offset=1)], x1=1, x2=1, y1=1, y2=0), interpolate='monotone').encode(x=alt.X('Mês', title=None), y=alt.Y('Gasto', title=None, axis=alt.Axis(format=',.0f', grid=True, labelPadding=10))).properties(height=300)
+            st.altair_chart(chart_area, use_container_width=True)
+            st.markdown('</div>', unsafe_allow_html=True)
+        
+        with col_dir:
+            st.markdown('<div class="chart-container"><b>Volume de Quilometragem</b>', unsafe_allow_html=True)
+            chart_bar = alt.Chart(df_filtrado).mark_bar(color=COR_PRIMARIA, cornerRadiusTopLeft=6, cornerRadiusTopRight=6, size=35).encode(x=alt.X('Mês', title=None), y=alt.Y('KM', title=None, axis=alt.Axis(format=',.0f', grid=True, labelPadding=10))).properties(height=300)
+            st.altair_chart(chart_bar, use_container_width=True)
+            st.markdown('</div>', unsafe_allow_html=True)
 
-    st.markdown("<br>", unsafe_allow_html=True)
+        st.markdown('<div class="chart-container"><b>Tabela de Detalhamento</b>', unsafe_allow_html=True)
+        st.dataframe(df_filtrado, use_container_width=True, hide_index=True, column_config={"Gasto": st.column_config.ProgressColumn("Gasto Real", format="R$ %.2f", min_value=0, max_value=df_base['Gasto'].max())})
+        st.markdown('</div>', unsafe_allow_html=True)
 
-    # Gráfico de Apoio Visual
-    st.markdown('<div class="chart-container">', unsafe_allow_html=True)
-    st.markdown(f"<b>Comparativo de Gastos Mensais vs Média (R$)</b>", unsafe_allow_html=True)
-    
-    # Gráfico que destaca o mês selecionado
-    chart = alt.Chart(df_base).mark_bar().encode(
-        x=alt.X('Mês', title=None, axis=alt.Axis(labelAngle=0)),
-        y=alt.Y('Gasto', title=None),
-        color=alt.condition(
-            alt.datum.Mês == mes_analise,
-            alt.value(COR_PRIMARIA), # Cor de destaque
-            alt.value('#cbd5e1')      # Cor neutra para os outros
-        ),
-        tooltip=['Mês', 'Gasto']
-    ).properties(height=350)
-    
-    # Linha da Média (Referência Visual)
-    linha_media = alt.Chart(pd.DataFrame({'y': [media_gasto_anual]})).mark_rule(
-        color=COR_ALERTA, 
-        strokeDash=[5,5],
-        size=2
-    ).encode(y='y')
+    # --- ABA 2: DIAGNÓSTICO (A Inteligência de Dados) ---
+    with aba2:
+        st.markdown(f"<h2 style='color:{COR_SECUNDARIA}'>Análise Comparativa de Desvios</h2>", unsafe_allow_html=True)
+        
+        mes_diagnostico = st.selectbox("Escolha o mês para análise profunda:", df_base['Mês'].unique())
+        
+        # Lógica de Inteligência
+        media_anual = df_base['Gasto'].mean()
+        dados_mes = df_base[df_base['Mês'] == mes_diagnostico].iloc[0]
+        desvio = ((dados_mes['Gasto'] - media_anual) / media_anual) * 100
 
-    st.altair_chart(chart + linha_media, use_container_width=True)
-    st.markdown('</div>', unsafe_allow_html=True)
+        c_diag1, c_diag2, c_diag3 = st.columns(3)
+        c_diag1.metric("Gasto em " + mes_diagnostico, f"R$ {dados_mes['Gasto']:,.2f}", f"{desvio:.1f}% vs média", delta_color="inverse")
+        c_diag2.metric("Média de Referência", f"R$ {media_anual:,.2f}")
+        status = "⚠️ ACIMA DA MÉDIA" if desvio > 0 else "✅ DENTRO DA META"
+        c_diag3.metric("Status Operacional", status)
 
-    # Insights Automáticos
-    if desvio_gasto > 10:
-        st.error(f"🚨 **Atenção:** O gasto de {mes_analise} está significativamente acima da média (↑{desvio_gasto:.1f}%). Recomenda-se revisar as ordens de serviço deste período.")
-    elif desvio_gasto < -10:
-        st.success(f"✅ **Excelente:** O mês de {mes_analise} apresentou uma economia de {abs(desvio_gasto):.1f}% em relação à média anual.")
-    else:
-        st.info(f"ℹ️ **Estabilidade:** Os gastos de {mes_analise} estão alinhados com a média operacional esperada.")
+        st.markdown('<div class="chart-container">', unsafe_allow_html=True)
+        # Gráfico que destaca o mês escolhido
+        diag_chart = alt.Chart(df_base).mark_bar().encode(
+            x=alt.X('Mês', title=None),
+            y=alt.Y('Gasto', title=None),
+            color=alt.condition(alt.datum.Mês == mes_diagnostico, alt.value(COR_PRIMARIA), alt.value('#e2e8f0')),
+            tooltip=['Mês', 'Gasto']
+        ).properties(height=350)
+        
+        linha_media = alt.Chart(pd.DataFrame({'y': [media_anual]})).mark_rule(color='#ef4444', strokeDash=[5,5]).encode(y='y')
+        st.altair_chart(diag_chart + linha_media, use_container_width=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+        
+        if desvio > 10:
+            st.error(f"O mês de {mes_diagnostico} está com custos elevados. Verifique as manutenções corretivas.")
+        else:
+            st.success(f"O desempenho de {mes_diagnostico} está saudável perante a média anual.")
 
 else:
-    st.warning("Aguardando conexão com o banco de dados...")
-    
+    st.info("Carregando banco de dados...")
