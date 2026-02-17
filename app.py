@@ -17,7 +17,6 @@ st.markdown(f"""
         html, body, [class*="css"] {{ font-family: 'Inter', sans-serif; color: {COR_TEXTO}; }}
         .stApp {{ background-color: #f8fafc; }}
         
-        /* Estilização das Abas */
         .stTabs [data-baseweb="tab"] {{
             height: 50px;
             background-color: #ffffff;
@@ -31,7 +30,6 @@ st.markdown(f"""
             border-bottom: 3px solid {COR_PRIMARIA} !important;
         }}
 
-        /* Estilização dos Containers e Cards */
         .chart-container {{
             background-color: #ffffff;
             padding: 25px;
@@ -74,18 +72,15 @@ df_base = carregar_dados_sql()
 
 # --- 3. Sidebar com Filtros de Performance ---
 with st.sidebar:
-    st.markdown(f"### ⚙️ Filtros de Performance")
+    st.markdown(f"### ⚙️ Filtros de Tendência")
     st.divider()
     
     if not df_base.empty:
-        # Filtro 1: Período
-        meses_selecionados = st.multiselect("Selecione os Meses:", df_base['Mês'].unique(), default=df_base['Mês'].unique())
+        meses_selecionados = st.multiselect("Filtrar Período dos Gráficos:", df_base['Mês'].unique(), default=df_base['Mês'].unique())
         
-        # Filtro 2: Faixa de Gasto (Slider)
         gasto_min, gasto_max = float(df_base['Gasto'].min()), float(df_base['Gasto'].max())
         filtro_gasto = st.slider("Faixa de Investimento (R$):", gasto_min, gasto_max, (gasto_min, gasto_max))
         
-        # Filtro 3: Eficiência (Slider)
         custo_km_max = float(df_base['Custo/KM'].max())
         filtro_eficiencia = st.slider("Limite de Custo por KM (R$):", 0.0, custo_km_max, custo_km_max)
         
@@ -93,7 +88,7 @@ with st.sidebar:
         if st.button("Resetar Filtros"):
             st.rerun()
 
-    st.caption(f"Gabriel Barbosa | Analista Administrativo")
+    st.caption(f"Painel de Gestão de Frota")
 
 # --- 4. Lógica de Filtragem ---
 if not df_base.empty:
@@ -108,18 +103,24 @@ if not df_base.empty:
     # --- 5. Interface Principal ---
     aba1, aba2 = st.tabs(["📊 Visão Geral", "🧠 Diagnóstico de Performance"])
 
-    # ABA 1: Visão Geral (Responde a todos os filtros)
+    # ABA 1: Visão Geral
     with aba1:
         st.markdown(f"<h2 style='color:{COR_SECUNDARIA}; margin-top:0;'>Dashboard Estratégico</h2>", unsafe_allow_html=True)
         
         if df_filtrado.empty:
             st.warning("Nenhum dado encontrado para os filtros selecionados.")
         else:
+            # NOVO FILTRO DE FOCO (Igual ao diagnóstico)
+            mes_foco = st.selectbox("Selecione o Mês para Foco nos Indicadores:", df_filtrado['Mês'].unique(), key="foco_geral")
+            dados_foco = df_filtrado[df_filtrado['Mês'] == mes_foco].iloc[0]
+            
+            st.markdown("<br>", unsafe_allow_html=True)
+            
             c1, c2, c3, c4 = st.columns(4)
-            c1.metric("Gasto Total", f"R$ {df_filtrado['Gasto'].sum():,.2f}")
-            c2.metric("Média no Período", f"R$ {df_filtrado['Gasto'].mean():,.2f}")
-            c3.metric("Total KM", f"{df_filtrado['KM'].sum():,}".replace(',', '.'))
-            c4.metric("Eficiência Média", f"R$ {df_filtrado['Custo/KM'].mean():.3f}")
+            c1.metric(f"Gasto em {mes_foco}", f"R$ {dados_foco['Gasto']:,.2f}")
+            c2.metric(f"KM em {mes_foco}", f"{dados_foco['KM']:,.0f}".replace(',', '.'))
+            c3.metric(f"Eficiência em {mes_foco}", f"R$ {dados_foco['Custo/KM']:.3f}")
+            c4.metric("Gasto Total (Período)", f"R$ {df_filtrado['Gasto'].sum():,.2f}")
 
             col_esq, col_dir = st.columns(2)
             with col_esq:
@@ -141,30 +142,38 @@ if not df_base.empty:
             })
             st.markdown('</div>', unsafe_allow_html=True)
 
-    # ABA 2: Diagnóstico (Foca em um mês específico comparado ao todo)
+    # ABA 2: Diagnóstico
     with aba2:
-        st.markdown(f"<h2 style='color:{COR_SECUNDARIA}; margin-top:0;'>Análise de Desvio</h2>", unsafe_allow_html=True)
-        mes_diagnostico = st.selectbox("Escolha o mês para auditoria:", df_base['Mês'].unique())
+        st.markdown(f"<h2 style='color:{COR_SECUNDARIA}; margin-top:0;'>Análise de Desvio e Controle</h2>", unsafe_allow_html=True)
+        mes_diagnostico = st.selectbox("Escolha o mês para auditoria:", df_base['Mês'].unique(), key="foco_diag")
         
         media_anual = df_base['Gasto'].mean()
         dados_mes = df_base[df_base['Mês'] == mes_diagnostico].iloc[0]
         desvio = ((dados_mes['Gasto'] - media_anual) / media_anual) * 100
 
         diag1, diag2, diag3 = st.columns(3)
-        diag1.metric(f"Gasto em {mes_diagnostico}", f"R$ {dados_mes['Gasto']:,.2f}", f"{desvio:.1f}% vs média", delta_color="inverse")
-        diag2.metric("Média Global", f"R$ {media_anual:,.2f}")
-        status = "⚠️ CRÍTICO" if desvio > 10 else "✅ ESTÁVEL"
+        diag1.metric(f"Gasto em {mes_diagnostico}", f"R$ {dados_mes['Gasto']:,.2f}", f"{desvio:.1f}% vs meta", delta_color="inverse")
+        diag2.metric("Meta de Controle (Média)", f"R$ {media_anual:,.2f}")
+        status = "⚠️ ACIMA DA META" if desvio > 0 else "✅ DENTRO DA META"
         diag3.metric("Status Operacional", status)
 
         st.markdown('<div class="chart-container">', unsafe_allow_html=True)
+        st.markdown(f"<b>Comparativo Mensal vs Linha de Meta (R$)</b>", unsafe_allow_html=True)
         diag_chart = alt.Chart(df_base).mark_bar().encode(
             x=alt.X('Mês', title=None),
             y=alt.Y('Gasto', title=None),
-            color=alt.condition(alt.datum.Mês == mes_diagnostico, alt.value(COR_PRIMARIA), alt.value('#e2e8f0'))
+            color=alt.condition(alt.datum.Mês == mes_diagnostico, alt.value(COR_PRIMARIA), alt.value('#e2e8f0')),
+            tooltip=['Mês', alt.Tooltip('Gasto', format='$,.2f')]
         ).properties(height=350)
-        linha_ref = alt.Chart(pd.DataFrame({'y': [media_anual]})).mark_rule(color='#ef4444', strokeDash=[5,5]).encode(y='y')
+        
+        linha_ref = alt.Chart(pd.DataFrame({'y': [media_anual]})).mark_rule(color='#ef4444', strokeDash=[5,5], size=2).encode(y='y')
         st.altair_chart(diag_chart + linha_ref, use_container_width=True)
         st.markdown('</div>', unsafe_allow_html=True)
+        
+        if desvio > 10:
+            st.error(f"O mês de {mes_diagnostico} superou a meta de controle. Recomenda-se auditoria nas despesas.")
+        else:
+            st.success(f"Excelente! {mes_diagnostico} operou dentro ou abaixo da meta estabelecida.")
 
 else:
     st.info("Aguardando dados...")
